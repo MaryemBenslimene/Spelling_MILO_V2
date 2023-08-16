@@ -42,14 +42,9 @@ lambda_ipa_converter['de'] = RuleBasedModels.EpitranPhonemConverter(
 lambda_ipa_converter['en'] = RuleBasedModels.EngPhonemConverter()
 
 
-def lambda_handler(event, context):
+def lambda_handler(language):
 
-    body = json.loads(event['body'])
-
-    category = int(body['category'])
-
-    language = body['language']
-
+    category = 1
     sample_in_category = False
 
     while(not sample_in_category):
@@ -77,8 +72,10 @@ def lambda_handler(event, context):
     result = {'real_transcript': current_transcript,
               'ipa_transcript': current_ipa,
               'transcript_translation': translated_trascript}
+    
+    print(result)
 
-    return json.dumps(result)
+    return result
 
 
 def getSentenceCategory(sentence) -> int:

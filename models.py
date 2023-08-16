@@ -1,10 +1,18 @@
 import torch
 import torch.nn as nn
+from omegaconf import OmegaConf
+from sileromodels.src.silero import (silero_stt, silero_tts)
+from glob import glob
+from sileromodels.src.silero.utils import (init_jit_model, 
+                       split_into_batches,
+                       read_audio,
+                       read_batch,
+                       prepare_model_input)
 
 import pickle
 
-
-import pickle
+device = torch.device('cpu')   # you can use any pytorch device
+models = OmegaConf.load('sileromodels\models.yml')
 
 
 def getASRModel(language: str) -> nn.Module:
@@ -17,10 +25,9 @@ def getASRModel(language: str) -> nn.Module:
                                                device=torch.device('cpu'))
 
     elif language == 'en':
-        model, decoder, utils = torch.hub.load(repo_or_dir='snakers4/silero-models',
-                                               model='silero_stt',
-                                               language='en',
-                                               device=torch.device('cpu'))
+        
+        model, decoder = init_jit_model(models.stt_models.en.latest.jit, device=device)
+
     elif language == 'fr':
         model, decoder, utils = torch.hub.load(repo_or_dir='snakers4/silero-models',
                                                model='silero_stt',
@@ -41,11 +48,7 @@ def getTTSModel(language: str) -> nn.Module:
                                   speaker=speaker)
 
     elif language == 'en':
-        speaker = 'lj_16khz'  # 16 kHz
-        model = torch.hub.load(repo_or_dir='snakers4/silero-models',
-                               model='silero_tts',
-                               language=language,
-                               speaker=speaker)
+        model, symbols, sample_rate, example_text, apply_tts = silero_tts(language='en', speaker = 'lj_16khz')
     else:
         raise ValueError('Language not implemented')
 

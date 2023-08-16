@@ -109,7 +109,7 @@ class PronunciationTrainer:
 
         return result
 
-    def getAudioTranscript(self, recordedAudio: torch.Tensor = None):
+    def getAudioTranscript(self, recordedAudio: torch.Tensor):
         current_recorded_audio = recordedAudio
 
         current_recorded_audio = self.preprocessAudio(

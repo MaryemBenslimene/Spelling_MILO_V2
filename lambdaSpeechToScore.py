@@ -10,6 +10,10 @@ import time
 import audioread
 import numpy as np
 from torchaudio.transforms import Resample
+import torchaudio
+import wave
+import pyaudio
+
 
 
 trainer_SST_lambda = {}
@@ -18,48 +22,61 @@ trainer_SST_lambda['en'] = pronunciationTrainer.getTrainer("en")
 
 transform = Resample(orig_freq=48000, new_freq=16000)
 
+def record_audio(output_file_path, duration=5):
+    chunk = 1024
+    sample_format = pyaudio.paInt16
+    channels = 1
+    fs = 16000
 
-def lambda_handler(event, context):
+    p = pyaudio.PyAudio()
 
-    data = json.loads(event['body'])
+    stream = p.open(format=sample_format,
+                    channels=channels,
+                    rate=fs,
+                    frames_per_buffer=chunk,
+                    input=True)
 
-    real_text = data['title']
-    file_bytes = base64.b64decode(
-        data['base64Audio'][22:].encode('utf-8'))
-    language = data['language']
+    print("Recording...")
+    frames = []
 
-    if len(real_text) == 0:
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Credentials': "true",
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
-            },
-            'body': ''
-        }
+    for _ in range(0, int(fs / chunk * duration)):
+        data = stream.read(chunk)
+        frames.append(data)
 
-    start = time.time()
-    random_file_name = './'+utilsFileIO.generateRandomString()+'.ogg'
-    f = open(random_file_name, 'wb')
-    f.write(file_bytes)
-    f.close()
-    print('Time for saving binary in file: ', str(time.time()-start))
+    print("Finished recording.")
 
-    start = time.time()
-    signal, fs = audioread_load(random_file_name)
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
-    signal = transform(torch.Tensor(signal)).unsqueeze(0)
+    wf = wave.open(output_file_path, 'wb')
+    wf.setnchannels(channels)
+    wf.setsampwidth(p.get_sample_size(sample_format))
+    wf.setframerate(fs)
+    wf.writeframes(b''.join(frames))
+    wf.close()
 
-    print('Time for loading .ogg file file: ', str(time.time()-start))
 
-    result = trainer_SST_lambda[language].processAudioForGivenText(
-        signal, real_text)
+def lambda_handler(real_sentence, language):
 
-    start = time.time()
-    os.remove(random_file_name)
-    print('Time for deleting file: ', str(time.time()-start))
+    recorded_audio_file = "hearing.wav"
+
+    #record_audio(recorded_audio_file)
+
+    #start = time.time()
+    
+    #signal, fs = audioread_load(random_file_name)
+    sample_rate = 16000  # Desired sample rate
+    audio_tensor = load_audio(recorded_audio_file, sample_rate)
+
+    #signal = transform(torch.Tensor(signal)).unsqueeze(0)
+    #print('Time for loading .ogg file file: ', str(time.time()-start))
+
+    result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(audio_tensor), real_sentence)
+
+    #start = time.time()
+    #os.remove(random_file_name)
+    #print('Time for deleting file: ', str(time.time()-start))
 
     start = time.time()
     real_transcripts_ipa = ' '.join(
@@ -101,16 +118,26 @@ def lambda_handler(event, context):
            'end_time': result['end_time'],
            'is_letter_correct_all_words': is_letter_correct_all_words}
 
-    return json.dumps(res)
+    return res
 
 # From Librosa
 
+def load_audio(audio_file, sample_rate=16000):
+    # Load audio file
+    waveform, _ = torchaudio.load(audio_file, normalize=True)
+    
+    # Resample audio to the desired sample rate
+    if _ != sample_rate:
+        resampler = torchaudio.transforms.Resample(orig_freq=_, new_freq=sample_rate)
+        waveform = resampler(waveform)
+    
+    return waveform
 
+"""
 def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
-    """Load an audio buffer using audioread.
+    Load an audio buffer using audioread.
 
     This loads one block at a time, and then concatenates the results.
-    """
 
     y = []
     with audioread.audio_open(path) as input_file:
@@ -162,7 +189,7 @@ def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
     return y, sr_native
 
 # From Librosa
-
+"""
 
 def buf_to_float(x, n_bytes=2, dtype=np.float32):
     """Convert an integer buffer to floating point values.
