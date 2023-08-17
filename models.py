@@ -12,7 +12,7 @@ from sileromodels.src.silero.utils import (init_jit_model,
 import pickle
 
 device = torch.device('cpu')   # you can use any pytorch device
-models = OmegaConf.load('sileromodels\models.yml')
+models = OmegaConf.load('/home/ubuntu/milo/Spelling_trainer/sileromodels/models.yml')
 
 
 def getASRModel(language: str) -> nn.Module:
