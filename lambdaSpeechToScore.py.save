@@ -1,0 +1,60 @@
+
+import torch
+import json
+import os
+import WordMatching as wm
+import utilsFileIO
+import pronunciationTrainer
+import base64
+import time
+import audioread
+import numpy as np
+from torchaudio.transforms import Resample
+import torchaudio
+import wave
+import pyaudio
+import subprocess
+
+
+
+trainer_SST_lambda = {}
+trainer_SST_lambda['de'] = pronunciationTrainer.getTrainer("de")
+trainer_SST_lambda['en'] = pronunciationTrainer.getTrainer("en")
+
+transform = Resample(orig_freq=48000, new_freq=16000)
+
+def lambda_handler(real_sentence, language):
+
+command = "python denoiser\denoiser.py RecordingRahim.wav hearing_output.wav"
+
+    recorded_audio_file = "hearing.wav"
+
+    #record_audio(recorded_audio_file)
+
+    #start = time.time()
+    
+    #signal, fs = audioread_load(random_file_name)
+    sample_rate = 16000  # Desired sample rate
+    audio_tensor = load_audio(recorded_audio_file, sample_rate)
+
+    #signal = transform(torch.Tensor(signal)).unsqueeze(0)
+    #print('Time for loading .ogg file file: ', str(time.time()-start))
+
+    result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(audio_tensor), real_sentence)
+
+    #start = time.time()
+    #os.remove(random_file_name)
+    #print('Time for deleting file: ', str(time.time()-start))
+
+    start = time.time()
+    real_transcripts_ipa = ' '.join(
+        [word[0] for word in result['real_and_transcribed_words_ipa']])
+    matched_transcripts_ipa = ' '.join(
+        [word[1] for word in result['real_and_transcribed_words_ipa']])
+
+    real_transcripts = ' '.join(
+        [word[0] for word in result['real_and_transcribed_words']])
+    matched_transcripts = ' '.join(
+        [word[1] for word in result['real_and_transcribed_words']])
+
+    words_real = 

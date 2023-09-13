@@ -13,8 +13,7 @@ from torchaudio.transforms import Resample
 import torchaudio
 import wave
 import pyaudio
-
-
+import subprocess
 
 trainer_SST_lambda = {}
 trainer_SST_lambda['de'] = pronunciationTrainer.getTrainer("de")
@@ -22,50 +21,19 @@ trainer_SST_lambda['en'] = pronunciationTrainer.getTrainer("en")
 
 transform = Resample(orig_freq=48000, new_freq=16000)
 
-def record_audio(output_file_path, duration=5):
-    chunk = 1024
-    sample_format = pyaudio.paInt16
-    channels = 1
-    fs = 16000
-
-    p = pyaudio.PyAudio()
-
-    stream = p.open(format=sample_format,
-                    channels=channels,
-                    rate=fs,
-                    frames_per_buffer=chunk,
-                    input=True)
-
-    print("Recording...")
-    frames = []
-
-    for _ in range(0, int(fs / chunk * duration)):
-        data = stream.read(chunk)
-        frames.append(data)
-
-    print("Finished recording.")
-
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-    wf = wave.open(output_file_path, 'wb')
-    wf.setnchannels(channels)
-    wf.setsampwidth(p.get_sample_size(sample_format))
-    wf.setframerate(fs)
-    wf.writeframes(b''.join(frames))
-    wf.close()
-
-
 def lambda_handler(real_sentence, language):
 
-    recorded_audio_file = "hearing.wav"
+    command = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
+
+    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    recorded_audio_file = "hearing_output.wav"
 
     #record_audio(recorded_audio_file)
 
     #start = time.time()
     
-    #signal, fs = audioread_load(random_file_name)
+    #signal, fs = audioread_load(recorded_audio_file)
     sample_rate = 16000  # Desired sample rate
     audio_tensor = load_audio(recorded_audio_file, sample_rate)
 
@@ -73,6 +41,8 @@ def lambda_handler(real_sentence, language):
     #print('Time for loading .ogg file file: ', str(time.time()-start))
 
     result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(audio_tensor), real_sentence)
+
+    #result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(signal), real_sentence)
 
     #start = time.time()
     #os.remove(random_file_name)
@@ -108,16 +78,12 @@ def lambda_handler(real_sentence, language):
         [str(category) for category in result['pronunciation_categories']])
     print('Time to post-process results: ', str(time.time()-start))
 
-    res = {'real_transcript': result['recording_transcript'],
-           'ipa_transcript': result['recording_ipa'],
+    res = {'recorded_transcript': result['recording_transcript'],
+           'ipa_recorded_transcript': result['recording_ipa'],
            'pronunciation_accuracy': str(int(result['pronunciation_accuracy'])),
-           'real_transcripts': real_transcripts, 'matched_transcripts': matched_transcripts,
-           'real_transcripts_ipa': real_transcripts_ipa, 'matched_transcripts_ipa': matched_transcripts_ipa,
-           'pair_accuracy_category': pair_accuracy_category,
-           'start_time': result['start_time'],
-           'end_time': result['end_time'],
+           'real_transcripts': real_transcripts, 
+           'real_transcripts_ipa': real_transcripts_ipa, 
            'is_letter_correct_all_words': is_letter_correct_all_words}
-
     return res
 
 # From Librosa
@@ -133,11 +99,13 @@ def load_audio(audio_file, sample_rate=16000):
     
     return waveform
 
-"""
+
 def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
+    """
     Load an audio buffer using audioread.
 
     This loads one block at a time, and then concatenates the results.
+    """
 
     y = []
     with audioread.audio_open(path) as input_file:
@@ -189,7 +157,7 @@ def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
     return y, sr_native
 
 # From Librosa
-"""
+
 
 def buf_to_float(x, n_bytes=2, dtype=np.float32):
     """Convert an integer buffer to floating point values.
@@ -221,3 +189,4 @@ def buf_to_float(x, n_bytes=2, dtype=np.float32):
 
     # Rescale and format the data buffer
     return scale * np.frombuffer(x, fmt).astype(dtype)
+
