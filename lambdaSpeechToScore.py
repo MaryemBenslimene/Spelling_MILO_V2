@@ -78,12 +78,38 @@ def lambda_handler(real_sentence, language):
         [str(category) for category in result['pronunciation_categories']])
     print('Time to post-process results: ', str(time.time()-start))
 
+    binary_txt = is_letter_correct_all_words.split()
+
+    for idx in range(len(mapped_words)) :
+        while len(mapped_words[idx]) < len(binary_txt[idx]):
+            mapped_words[idx] = mapped_words[idx] +'_'
+    
+    for idx, word in enumerate(words_real) :
+        word = word.replace('_','')
+        words_real[idx] = word
+
+    record_txt = ' '.join(
+            [word for word in words_real])
+
+    b_txt = ' '.join(
+            [word for word in binary_txt])
+
+    words_result_html = "<div>"
+    for char_result in list(zip(record_txt, b_txt)):
+        if char_result[1] == '1':
+            words_result_html += "<span style= '" + "color:green" + " ' >" + char_result[0] + "</span>"
+        else:
+            words_result_html += "<span style= ' " + "color:red" + " ' >" + char_result[0] + "</span>"
+
+    words_result_html += "</div>"
+
     res = {'recorded_transcript': result['recording_transcript'],
            'ipa_recorded_transcript': result['recording_ipa'],
            'pronunciation_accuracy': str(int(result['pronunciation_accuracy'])),
            'real_transcripts': real_transcripts, 
            'real_transcripts_ipa': real_transcripts_ipa, 
-           'is_letter_correct_all_words': is_letter_correct_all_words}
+           'is_letter_correct_all_words': is_letter_correct_all_words, 
+           'result_html': words_result_html}
     return res
 
 # From Librosa
@@ -189,4 +215,5 @@ def buf_to_float(x, n_bytes=2, dtype=np.float32):
 
     # Rescale and format the data buffer
     return scale * np.frombuffer(x, fmt).astype(dtype)
+
 
