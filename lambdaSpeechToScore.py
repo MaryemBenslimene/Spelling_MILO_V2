@@ -1,4 +1,5 @@
 
+
 import torch
 import json
 import os
@@ -14,39 +15,38 @@ import torchaudio
 import wave
 import pyaudio
 import subprocess
+import ffmpeg
+import soundfile as sf
 
 trainer_SST_lambda = {}
-trainer_SST_lambda['de'] = pronunciationTrainer.getTrainer("de")
 trainer_SST_lambda['en'] = pronunciationTrainer.getTrainer("en")
 
 transform = Resample(orig_freq=48000, new_freq=16000)
 
 def lambda_handler(real_sentence, language):
+    input_file = 'hearing.wav'
+    output_file = 'hearing2.wav'
 
-    command = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
-
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    #ffmpeg.input(input_file).output(output_file, ar=16000, ac=1).run(overwrite_output=True)
+    
+    #input_audio = ffmpeg.input(input_file)
+    #output_audio = ffmpeg.output(input_audio, output_file, ar=16000, ac=1)
+    #ffmpeg.run(output_audio, overwrite_output=True)
+    command1 = "/usr/bin/ffmpeg -y -i hearing.wav -ar 16000 -ac 1 hearing2.wav"
+    #command1 = "ffmpeg -y -i hearing.wav -ar 16000 -ac 1 hearing2.wav"
+    subprocess.run(command1, shell=True)
+    command2 = "/usr/bin/mv hearing2.wav hearing.wav"
+    subprocess.run(command2, shell=True )
+    command3 = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
+    subprocess.run(command3,shell=True)
 
     recorded_audio_file = "hearing_output.wav"
 
-    #record_audio(recorded_audio_file)
+    #sample_rate = 16000  # Desired sample rate
+    #audio_tensor = load_audio(recorded_audio_file, sample_rate)
 
-    #start = time.time()
-    
-    #signal, fs = audioread_load(recorded_audio_file)
-    sample_rate = 16000  # Desired sample rate
-    audio_tensor = load_audio(recorded_audio_file, sample_rate)
-
-    #signal = transform(torch.Tensor(signal)).unsqueeze(0)
-    #print('Time for loading .ogg file file: ', str(time.time()-start))
-
-    result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(audio_tensor), real_sentence)
-
-    #result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(signal), real_sentence)
-
-    #start = time.time()
-    #os.remove(random_file_name)
-    #print('Time for deleting file: ', str(time.time()-start))
+    #result = trainer_SST_lambda[language].processAudioForGivenText(torch.Tensor(audio_tensor), real_sentence)
+    result = trainer_SST_lambda[language].processAudioForGivenText(recorded_audio_file, real_sentence)
 
     start = time.time()
     real_transcripts_ipa = ' '.join(
@@ -94,12 +94,12 @@ def lambda_handler(real_sentence, language):
     b_txt = ' '.join(
             [word for word in binary_txt])
 
-    words_result_html = "<div>"
+    words_result_html = "<div style='text-align:center;'>"
     for char_result in list(zip(record_txt, b_txt)):
         if char_result[1] == '1':
-            words_result_html += "<span style= '" + "color:green" + " ' >" + char_result[0] + "</span>"
+            words_result_html += "<span style= '" + "color:green;font-size:60px;" + " ' >" + char_result[0] + "</span>"
         else:
-            words_result_html += "<span style= ' " + "color:red" + " ' >" + char_result[0] + "</span>"
+            words_result_html += "<span style= ' " + "color:red;font-size:60px;" + " ' >" + char_result[0] + "</span>"
 
     words_result_html += "</div>"
 

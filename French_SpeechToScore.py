@@ -1,36 +1,79 @@
-from ArabicSpeechRecognition.phonetiseArabic import phonetise
-from ArabicSpeechRecognition.speechtotext import get_large_audio_transcription
+import torchaudio
+from transformers import (
+    Wav2Vec2ForCTC,
+    Wav2Vec2Processor,
+    Wav2Vec2Config
+)
+import torch
+import epitran
 import ArabicSpeechRecognition.RecordToScore as score
 import ArabicSpeechRecognition.WordMatching as wm
 import ArabicSpeechRecognition.WordMetrics
 import subprocess
+import soundfile as sf
 
-def ArSpeechToScore(title):
-    command = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
 
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+model_name = "facebook/wav2vec2-large-xlsr-53-french"
+device = "cpu"
+
+model = Wav2Vec2ForCTC.from_pretrained(model_name).to(device)
+processor = Wav2Vec2Processor.from_pretrained(model_name)
+
+resampler = torchaudio.transforms.Resample(orig_freq=48_000, new_freq=16_000)
+
+def ASR_french () :
+    #command = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
+
+    #result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    command1 = "/usr/bin/ffmpeg -y -i hearing.wav -ar 16000 -ac 1 hearing2.wav"
+    #command1 = "ffmpeg -y -i hearing.wav -ar 16000 -ac 1 hearing2.wav"
+    subprocess.run(command1, shell=True)
+    command2 = "/usr/bin/mv hearing2.wav hearing.wav"
+    subprocess.run(command2, shell=True )
+    command3 = "python ~/milo/denoiser/denoiser.py hearing.wav hearing_output.wav"
+    subprocess.run(command3,shell=True)
 
     recorded_audio_file = "hearing_output.wav"
+  
+    audio_data, sample_rate = sf.read(recorded_audio_file)
 
-    real_phoneme = phonetise(title)
+    features = processor(audio_data, sampling_rate=sample_rate , padding=True, return_tensors="pt")
+    input_values = features.input_values.to(device)
+   
+    attention_mask = features.attention_mask.to(device)
+    with torch.no_grad():
+            logits = model(input_values, attention_mask=attention_mask).logits
+    pred_ids = torch.argmax(logits, dim=-1)
+    pred = processor.batch_decode(pred_ids)
+    
+    return(pred[0])
 
-   # file_path = "hearing.wav"
-    transcript_txt = get_large_audio_transcription(recorded_audio_file)
+def phonemizer_fr(sentence) :
+    phonem_converter = epitran.Epitran('fra-Latn')
+    recording_ipa = phonem_converter.transliterate(sentence)
+    return (recording_ipa)
 
-    recorded_phoneme = phonetise(transcript_txt)
+    
+def FrSpeechToScore(title) :
+    real_phonemes = phonemizer_fr(title)
 
-
+    transcript_txt = ASR_french()
+    recorded_phonemes = phonemizer_fr(transcript_txt)
+  
+    title = title.lower()
     real_and_transcribed_words, mapped_words_indices = score.matchSampleAndRecordedWords(real_text = title, recorded_transcript = transcript_txt)
     current_words_recorded_accuracy1, current_words_recorded_accuracy2 = score.getPronunciationAccuracy(real_and_transcribed_words)
 
     real_transcripts = ' '.join(
             [word[0] for word in real_and_transcribed_words])
+
     matched_transcripts = ' '.join(
             [word[1] for word in real_and_transcribed_words])
 
-                 
+
     words_real = title.split()
     mapped_words = matched_transcripts.split()
+
 
     for idx in range(len(words_real)) :
             if (words_real[idx].find(mapped_words[idx]) != 0) and (words_real[idx].find(mapped_words[idx]) != -1):
@@ -52,19 +95,21 @@ def ArSpeechToScore(title):
             while len(words_real[idx]) < len(mapped_words[idx]):
                 words_real[idx] = words_real[idx] +'_'
 
+
     is_letter_correct_all_words = ''
     for idx, word_real in enumerate(words_real):
 
         is_letter_correct = wm.getWhichLettersWereTranscribedCorrectly(word_real, mapped_words[idx])
-                    
+
         is_letter_correct_all_words += ''.join([str(is_correct) for is_correct in is_letter_correct]) + ' '
-                    
+
     binary_txt = is_letter_correct_all_words.split()
 
     for idx in range(len(mapped_words)) :
         while len(mapped_words[idx]) < len(binary_txt[idx]):
             mapped_words[idx] = mapped_words[idx] +'_'
-    
+
+
     for idx, word in enumerate(words_real) :
         word = word.replace('_','')
         words_real[idx] = word
@@ -83,14 +128,12 @@ def ArSpeechToScore(title):
             words_result_html += "<span style= ' " + "color:red;font-size:60px;" + " ' >" + char_result[0] + "</span>"
 
     words_result_html += "</div>"
-
     result = {'recorded_transcript': transcript_txt,
-           'ipa_recorded_transcript': recorded_phoneme,
+           'ipa_recorded_transcript': recorded_phonemes,
            'pronunciation_accuracy': str(current_words_recorded_accuracy1),
            'real_transcripts': title, 
-           'real_transcripts_ipa': real_phoneme, 
+           'real_transcripts_ipa': real_phonemes, 
            'is_letter_correct_all_words': is_letter_correct_all_words,
            'result_html' : str(words_result_html)}
     
-    return result
-
+    return result 

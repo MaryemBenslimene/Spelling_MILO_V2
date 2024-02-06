@@ -7,7 +7,7 @@ import WordMatching as wm
 import epitran
 import ModelInterfaces as mi
 import AIModels
-#import whisper
+import whisper
 import RuleBasedModels
 from string import punctuation
 import time
@@ -82,46 +82,50 @@ class PronunciationTrainer:
 
     ##################### ASR Functions ###########################
 
-    def processAudioForGivenText(self, recorded_audio_file=None, real_text=None):
+    def pro= None, real_text=None):
 
         start = time.time()
-        recording_transcript, recording_ipa = self.getAudioTranscript(recorded_audio_file)
-        
+        recording_transcript, recording_ipa, word_locations = self.getAudioTranscript(
+            recordedAudio)
         print('Time for NN to transcript audio: ', str(time.time()-start))
-        
+        recording_transcript = whisper.whisper()
         start = time.time()
-        real_and_transcribed_words, real_and_transcribed_words_ipa, mapped_words_indices = self.matchSampleAndRecordedWords(real_text, recording_transcript)
+        real_and_transcribed_words, real_and_transcribed_words_ipa, mapped_words_indices = self.matchSampleAndRecordedWords(
+            real_text, recording_transcript)
         print('Time for matching transcripts: ', str(time.time()-start))
 
-        pronunciation_accuracy, current_words_pronunciation_accuracy = self.getPronunciationAccuracy(real_and_transcribed_words)  # _ipa
+        start_time, end_time = self.getWordLocationsFromRecordInSeconds(
+            word_locations, mapped_words_indices)
+
+        pronunciation_accuracy, current_words_pronunciation_accuracy = self.getPronunciationAccuracy(
+            real_and_transcribed_words)  # _ipa
 
         pronunciation_categories = self.getWordsPronunciationCategory(
             current_words_pronunciation_accuracy)
 
         result = {'recording_transcript': recording_transcript,
                   'real_and_transcribed_words': real_and_transcribed_words,
-                  'recording_ipa': recording_ipa,
+                  'recording_ipa': recording_ipa, 'start_time': start_time, 'end_time': end_time,
                   'real_and_transcribed_words_ipa': real_and_transcribed_words_ipa, 'pronunciation_accuracy': pronunciation_accuracy,
                   'pronunciation_categories': pronunciation_categories}
 
         return result
 
-    def getAudioTranscript(self, recordedAudioFile):
+    def getAudioTranscript(self, recordedAudio: torch.Tensor):
+        current_recorded_audio = recordedAudio
 
-        #current_recorded_audio = self.preprocessAudio(
-        #    current_recorded_audio)
+        current_recorded_audio = self.preprocessAudio(
+            current_recorded_audio)
 
-        #self.asr_model.processAudio(current_recorded_audio)
+        self.asr_model.processAudio(current_recorded_audio)
 
-        #current_recorded_transcript, current_recorded_word_locations = self.getTranscriptAndWordsLocations(
-        #    current_recorded_audio.shape[1])
-       
- #       current_recorded_transcript = whisper.whisper(recordedAudioFile)
-        current_recorded_transcript = " "
+        current_recorded_transcript, current_recorded_word_locations = self.getTranscriptAndWordsLocations(
+            current_recorded_audio.shape[1])
         current_recorded_ipa = self.ipa_converter.convertToPhonem(
             current_recorded_transcript)
+
       
-        return current_recorded_transcript, current_recorded_ipa
+        return current_recorded_transcript, current_recorded_ipa, current_recorded_word_locations
 
     def getWordLocationsFromRecordInSeconds(self, word_locations, mapped_words_indices) -> list:
         start_time = []
@@ -196,4 +200,5 @@ class PronunciationTrainer:
 
     def preprocessAudio(self, audio: torch.tensor) -> torch.tensor:
         audio = audio-torch.mean(audio)
-        audio = audio/torch.max(torch.abs(audi
+        audio = audio/torch.max(torch.abs(audio))
+        return audio
