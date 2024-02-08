@@ -6,9 +6,9 @@ from transformers import (
 )
 import torch
 import epitran
-import ArabicSpeechRecognition.RecordToScore as score
-import ArabicSpeechRecognition.WordMatching as wm
-import ArabicSpeechRecognition.WordMetrics
+import WordMatching as wm 
+import WordMetrics
+import lambdaSpeechToScore as score
 import subprocess
 import soundfile as sf
 
